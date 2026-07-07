@@ -47,7 +47,7 @@ service = education       ; 默认。如选运营商改为 cmcc/telecom/unicom
 
 ```bash
 # 安装依赖
-pip install pywebview pystray pillow requests pycryptodome
+pip install -r requirements.txt
 
 # 运行
 python webview_app.py
@@ -65,6 +65,7 @@ python webview_app.py
 | `webview_index.html` | 窗口界面 |
 | `make_icon.py` | 生成应用图标 |
 | `config.example.ini` | 配置文件模板（复制为 config.ini 使用） |
+| `requirements.txt` | Python 依赖清单 |
 | `打包.bat` | 一键打包成 exe |
 
 ## ❓ 常见问题
