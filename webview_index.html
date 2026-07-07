@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HUST校园网助手</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                 "Microsoft YaHei", sans-serif;
+    background: #f0f2f5;
+    color: #1f2937;
+    min-height: 100vh;
+    padding: 20px;
+    user-select: none;
+  }
+  .container { max-width: 860px; margin: 0 auto; }
+
+  header { display: flex; align-items: center; justify-content: space-between;
+           margin-bottom: 22px; }
+  header h1 { font-size: 20px; font-weight: 600; color: #111827;
+              display: inline-flex; align-items: center; gap: 10px; }
+  header .sub { color: #6b7280; font-size: 12px; margin-top: 4px; }
+  .title-left .sub { margin-top: 0; }
+  .win-btns { display: flex; gap: 8px; }
+  .win-btns button {
+    border: none; cursor: pointer; padding: 7px 14px; border-radius: 7px;
+    font-size: 13px; background: #e5e7eb; color: #374151;
+  }
+  .win-btns button:hover { background: #d1d5db; }
+
+  /* 状态卡片 */
+  .status-bar {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 12px; margin-bottom: 18px;
+  }
+  .card {
+    background: #fff; border-radius: 12px; padding: 15px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06); text-align: center;
+  }
+  .card .label { font-size: 12px; color: #9ca3af; margin-bottom: 6px; }
+  .card .value { font-size: 17px; font-weight: 600; color: #111827; }
+  .card.online .value { color: #10b981; }
+  .card.offline .value { color: #ef4444; }
+  .card.unknown .value { color: #9ca3af; }
+
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+         margin-right: 6px; vertical-align: middle; }
+  .dot.green { background: #10b981; box-shadow: 0 0 0 4px rgba(16,185,129,.15); }
+  .dot.red   { background: #ef4444; box-shadow: 0 0 0 4px rgba(239,68,68,.15); }
+  .dot.gray  { background: #9ca3af; }
+
+  /* 操作区 */
+  .panel {
+    background: #fff; border-radius: 12px; padding: 18px 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06); margin-bottom: 14px;
+  }
+  .panel h2 { font-size: 15px; margin-bottom: 14px; color: #374151;
+              display: flex; align-items: center; justify-content: space-between; }
+
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  button {
+    border: none; cursor: pointer; padding: 9px 18px; border-radius: 8px;
+    font-size: 14px; font-weight: 500; transition: all .15s;
+    background: #f3f4f6; color: #374151;
+  }
+  button:hover:not(:disabled) { background: #e5e7eb; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button.primary { background: #2563eb; color: #fff; }
+  button.primary:hover:not(:disabled) { background: #1d4ed8; }
+  button.success { background: #10b981; color: #fff; }
+  button.success:hover:not(:disabled) { background: #059669; }
+  button.danger  { background: #ef4444; color: #fff; }
+  button.danger:hover:not(:disabled) { background: #dc2626; }
+  .badge { font-size: 12px; padding: 3px 9px; border-radius: 999px;
+           background: #f3f4f6; color: #6b7280; }
+  .badge.running { background: rgba(16,185,129,.12); color: #059669; }
+  .badge.stopped { background: #f3f4f6; color: #9ca3af; }
+
+  /* 配置表单 */
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; }
+  .full { grid-column: 1 / -1; }
+  label { display: block; font-size: 13px; color: #6b7280; margin-bottom: 4px; }
+  input, select {
+    width: 100%; padding: 8px 11px; border: 1px solid #d1d5db;
+    border-radius: 7px; font-size: 14px; background: #fff; color: #1f2937;
+  }
+  input:focus, select:focus { outline: none; border-color: #2563eb;
+                              box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+  .hint { font-size: 11px; color: #9ca3af; margin-top: 3px; }
+
+  /* 日志 */
+  .log-box {
+    background: #1e1e1e; color: #d4d4d4; border-radius: 10px;
+    padding: 14px; height: 210px; overflow-y: auto;
+    font-family: "Cascadia Code", Consolas, Monaco, monospace;
+    font-size: 12.5px; line-height: 1.6; user-select: text;
+  }
+  .log-line .ts { color: #6b7280; }
+  .log-line .lv-INFO     { color: #69b7ff; }
+  .log-line .lv-WARNING  { color: #dcb673; }
+  .log-line .lv-ERROR    { color: #f87171; }
+  .log-line .lv-DEBUG    { color: #888; }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: #111827; color: #fff; padding: 10px 20px; border-radius: 8px;
+    font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,.2);
+    opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 999;
+  }
+  .toast.show { opacity: 1; }
+  .switch { position: relative; display: inline-block; width: 42px; height: 24px; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider { position: absolute; cursor: pointer; inset: 0;
+            background: #cbd5e1; transition: .2s; border-radius: 24px; }
+  .slider:before { content: ""; position: absolute; height: 18px; width: 18px;
+            left: 3px; bottom: 3px; background: #fff; transition: .2s;
+            border-radius: 50%; }
+  input:checked + .slider { background: #2563eb; }
+  input:checked + .slider:before { transform: translateX(18px); }
+  .switch-row { display: flex; align-items: center; gap: 10px; }
+  .switch-row span { font-size: 14px; color: #374151; }
+  footer { text-align: center; color: #9ca3af; font-size: 12px; margin-top: 16px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="title-left">
+      <h1>🎓 HUST校园网助手</h1>
+      <div class="sub">自动联网保活</div>
+    </div>
+    <div class="win-btns">
+      <button id="btn-min" title="最小化到托盘，后台保活继续">最小化到托盘</button>
+    </div>
+  </header>
+
+  <!-- 状态卡片 -->
+  <div class="status-bar">
+    <div class="card unknown" id="card-online">
+      <div class="label">网络状态</div>
+      <div class="value"><span class="dot gray" id="dot"></span><span id="online-text">加载中</span></div>
+    </div>
+    <div class="card">
+      <div class="label">当前账号</div>
+      <div class="value" id="username" style="font-size:15px;">—</div>
+    </div>
+    <div class="card">
+      <div class="label">上次检查</div>
+      <div class="value" id="last-check" style="font-size:15px;">—</div>
+    </div>
+    <div class="card">
+      <div class="label">上次登录</div>
+      <div class="value" id="last-login" style="font-size:15px;">—</div>
+    </div>
+  </div>
+
+  <!-- 操作面板 -->
+  <div class="panel">
+    <h2>操作
+      <span class="badge stopped" id="auto-badge">自动保活：已停止</span>
+    </h2>
+    <div class="btn-row">
+      <button class="primary" id="btn-check">立即检查并登录</button>
+      <button class="success" id="btn-auto-start">启动自动保活</button>
+      <button class="danger" id="btn-auto-stop" disabled>停止自动保活</button>
+    </div>
+  </div>
+
+  <!-- 配置面板 -->
+  <div class="panel">
+    <h2>配置 <span style="font-weight:400;font-size:12px;color:#9ca3af;">保存后立即生效</span></h2>
+    <div class="grid">
+      <div>
+        <label>学号 / 账号</label>
+        <input id="cfg-username" placeholder="U2023xxxxx">
+      </div>
+      <div>
+        <label>密码</label>
+        <input id="cfg-password" type="password" placeholder="校园网密码">
+      </div>
+      <div>
+        <label>认证服务器 IP</label>
+        <input id="cfg-host" placeholder="192.168.170.168">
+        <div class="hint">默认 192.168.170.168</div>
+      </div>
+      <div>
+        <label>运营商 / 服务</label>
+        <select id="cfg-service">
+          <option value="education">education（校园网，默认）</option>
+          <option value="cmcc">cmcc（中国移动）</option>
+          <option value="telecom">telecom（中国电信）</option>
+          <option value="unicom">unicom（中国联通）</option>
+        </select>
+      </div>
+      <div>
+        <label>检查间隔（分钟）</label>
+        <input id="cfg-interval" type="number" min="1" value="10">
+      </div>
+      <div>
+        <label>失败重试次数</label>
+        <input id="cfg-retries" type="number" min="0" value="3">
+      </div>
+      <div>
+        <label>重试间隔（秒）</label>
+        <input id="cfg-retry-delay" type="number" min="1" value="5">
+      </div>
+      <div>
+        <label>使用 HTTPS</label>
+        <select id="cfg-https">
+          <option value="false">否（默认）</option>
+          <option value="true">是</option>
+        </select>
+      </div>
+      <div class="full">
+        <label>探针 URL（用于判断是否联网）</label>
+        <input id="cfg-probe" placeholder="http://www.baidu.com">
+      </div>
+      <div class="full switch-row">
+        <label class="switch">
+          <input type="checkbox" id="cfg-autorun">
+          <span class="slider"></span>
+        </label>
+        <span>开机自启动（写入注册表，无需管理员权限）</span>
+      </div>
+      <div class="full">
+        <button class="primary" id="btn-save">保存配置</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 日志面板 -->
+  <div class="panel">
+    <h2>实时日志
+      <button id="btn-clear-log" style="padding:4px 12px;font-size:12px;">清空</button>
+    </h2>
+    <div class="log-box" id="log-box"></div>
+  </div>
+
+  <footer>关闭窗口将最小化到托盘，后台继续运行</footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============ 工具 ============
+const $ = (id) => document.getElementById(id);
+let logIdx = 0;
+
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(window._toastT);
+  window._toastT = setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// 等待 pywebview.api 注入完成
+function waitForBridge() {
+  return new Promise((resolve) => {
+    function check() {
+      if (window.pywebview && window.pywebview.api) resolve();
+      else setTimeout(check, 50);
+    }
+    check();
+  });
+}
+
+// pywebview.api.xxx() 返回的是 Promise（已经是结果对象）
+const call = (method, ...args) => window.pywebview.api[method](...args);
+
+// ============ 服务端推送接收（由 Python 端 evaluate_js 触发）============
+window.__hustDispatch = function(eventName, payload) {
+  if (eventName === 'status_changed') {
+    renderStatus(payload);
+  } else if (eventName === 'minimized_to_tray') {
+    // 可在此加视觉提示
+  }
+};
+
+// ============ 状态渲染 ============
+function renderStatus(s) {
+  if (!s) return;
+  const card = $('card-online');
+  const dot = $('dot');
+  const txt = $('online-text');
+  card.classList.remove('online', 'offline', 'unknown');
+  dot.classList.remove('green', 'red', 'gray');
+
+  if (s.online === true) {
+    card.classList.add('online'); dot.classList.add('green'); txt.textContent = '已联网';
+  } else if (s.online === false) {
+    card.classList.add('offline'); dot.classList.add('red'); txt.textContent = '已断网';
+  } else {
+    card.classList.add('unknown'); dot.classList.add('gray'); txt.textContent = '未知';
+  }
+
+  $('username').textContent = s.username || '—';
+  $('last-check').textContent = s.last_check || '—';
+  $('last-login').textContent = s.last_login || '—';
+
+  const badge = $('auto-badge');
+  if (s.auto_running) {
+    badge.textContent = '自动保活：运行中';
+    badge.classList.replace('stopped', 'running');
+    $('btn-auto-start').disabled = true;
+    $('btn-auto-stop').disabled = false;
+  } else {
+    badge.textContent = '自动保活：已停止';
+    badge.classList.replace('running', 'stopped');
+    $('btn-auto-start').disabled = false;
+    $('btn-auto-stop').disabled = true;
+  }
+}
+
+async function refreshStatus() {
+  try {
+    const s = await call('get_status');
+    renderStatus(s);
+  } catch (e) { /* 忽略 */ }
+}
+
+// ============ 配置 ============
+async function loadConfig() {
+  const c = await call('get_config');
+  $('cfg-username').value = c.username || '';
+  $('cfg-password').value = c.password || '';
+  $('cfg-host').value = c.host || '192.168.170.168';
+  $('cfg-service').value = c.service || 'education';
+  $('cfg-interval').value = c.interval_minutes ?? 10;
+  $('cfg-retries').value = c.max_retries ?? 3;
+  $('cfg-retry-delay').value = c.retry_delay ?? 5;
+  $('cfg-https').value = String(c.use_https) === 'true' ? 'true' : 'false';
+  $('cfg-probe').value = c.probe_url || 'http://www.baidu.com';
+
+  const ar = await call('get_autorun');
+  $('cfg-autorun').checked = !!ar.enabled;
+}
+
+async function saveConfig() {
+  const body = {
+    username: $('cfg-username').value.trim(),
+    password: $('cfg-password').value,
+    host: $('cfg-host').value.trim() || '192.168.170.168',
+    service: $('cfg-service').value,
+    interval_minutes: parseInt($('cfg-interval').value) || 10,
+    max_retries: parseInt($('cfg-retries').value) || 3,
+    retry_delay: parseInt($('cfg-retry-delay').value) || 5,
+    use_https: $('cfg-https').value === 'true',
+    probe_url: $('cfg-probe').value.trim() || 'http://www.baidu.com',
+    verbose: true,
+  };
+  await call('save_config', body);
+  toast('配置已保存 ✓');
+  refreshStatus();
+}
+
+// ============ 日志 ============
+function appendLog(item) {
+  const box = $('log-box');
+  const line = document.createElement('div');
+  line.className = 'log-line';
+  line.innerHTML = `<span class="ts">[${item.ts}]</span> ` +
+                   `<span class="lv-${item.level}">[${item.level}]</span> ` +
+                   `<span>${escapeHtml(item.msg)}</span>`;
+  box.appendChild(line);
+  logIdx = item.idx;
+  box.scrollTop = box.scrollHeight;
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+async function pollLogs() {
+  try {
+    const items = await call('get_logs', logIdx);
+    if (Array.isArray(items)) items.forEach(appendLog);
+  } catch (e) {}
+}
+
+// ============ 按钮 ============
+$('btn-save').onclick = saveConfig;
+
+$('btn-check').onclick = async () => {
+  $('btn-check').disabled = true;
+  toast('正在检查并登录 …');
+  try {
+    const r = await call('check_now');
+    toast(r.ok ? '已联网 ✓' : '登录失败，请查看日志');
+    refreshStatus();
+  } catch (e) {
+    toast('请求失败');
+  } finally {
+    $('btn-check').disabled = false;
+  }
+};
+
+$('btn-auto-start').onclick = async () => {
+  await call('start_keepalive');
+  toast('自动保活已启动');
+  refreshStatus();
+};
+$('btn-auto-stop').onclick = async () => {
+  await call('stop_keepalive');
+  toast('已请求停止');
+  setTimeout(refreshStatus, 500);
+};
+$('btn-clear-log').onclick = () => { $('log-box').innerHTML = ''; };
+
+$('btn-min').onclick = async () => {
+  await call('hide_window');
+};
+
+// 开机自启开关（异步执行，立即返回，靠轮询确认真实状态）
+$('cfg-autorun').onchange = async (e) => {
+  const want = e.target.checked;
+  toast(want ? '正在开启开机自启 …' : '正在关闭开机自启 …');
+  try {
+    await call('set_autorun', want);
+  } catch (err) {
+    toast('操作失败');
+    return;
+  }
+  // 等子线程写完注册表，再查一次真实状态同步开关
+  setTimeout(async () => {
+    const ar = await call('get_autorun');
+    $('cfg-autorun').checked = !!ar.enabled;
+    toast(ar.enabled ? '已开启开机自启 ✓' : '已关闭开机自启 ✓');
+  }, 600);
+};
+
+// ============ 启动 ============
+(async () => {
+  await waitForBridge();
+  await loadConfig();
+  await refreshStatus();
+  setInterval(refreshStatus, 3000);   // 状态每 3 秒拉一次
+  setInterval(pollLogs, 2000);        // 日志每 2 秒拉一次
+  pollLogs();
+})();
+</script>
+</body>
+</html>
