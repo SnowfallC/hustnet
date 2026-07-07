@@ -52,7 +52,7 @@ pip install -r requirements.txt
 # 运行
 python webview_app.py
 
-# 打包成 exe（自动创建虚拟环境）
+# 打包成 exe（自动创建虚拟环境，产物 dist\HUST_NetHelper.exe）
 打包.bat
 ```
 
