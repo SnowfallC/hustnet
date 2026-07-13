@@ -20,6 +20,7 @@ import traceback
 import webbrowser
 from collections import deque
 from datetime import datetime
+from urllib.parse import urlparse
 
 # ---- 路径处理：区分「打包资源目录」和「用户数据目录」----
 # RES_DIR：只读资源（webview_index.html）。打包后指向 exe 内部 _MEIPASS 或 exe 同级。
@@ -81,7 +82,8 @@ except Exception:
 
 CFG_PATH = os.path.join(HERE, "config.ini")  # config.ini 放 exe 同级，用户可改
 _instance_lock = None  # 单实例锁 socket（全局持有，防 GC）
-APP_NAME = "HUST校园网助手"
+APP_NAME = "HUST校园网重连助手"
+config_write_lock = threading.Lock()
 
 
 def _ensure_config():
@@ -145,6 +147,27 @@ class AppState:
 state = AppState()
 
 
+def sync_dynamic_server(cfg):
+    """将本次认证页动态发现的服务器地址写回配置。"""
+    origin = core.last_auth_origin
+    if not origin:
+        return
+    parsed = urlparse(origin)
+    if not parsed.scheme or not parsed.netloc:
+        return
+    host = parsed.netloc
+    use_https = parsed.scheme == "https"
+    current_host = cfg.get("server", "host", fallback="")
+    current_https = cfg.getboolean("server", "use_https", fallback=False)
+    if current_host == host and current_https == use_https:
+        return
+    cfg["server"] = {"host": host, "use_https": "true" if use_https else "false"}
+    with config_write_lock:
+        with open(CFG_PATH, "w", encoding="utf-8") as f:
+            cfg.write(f)
+    core.logger.info("认证服务器已动态更新为：%s", origin)
+
+
 class _SinkHandler(logging.Handler):
     """把 core.logger 的日志同步进内存缓冲。"""
     def emit(self, record):
@@ -196,6 +219,7 @@ class Keepalive:
         try:
             cfg = core.load_config(CFG_PATH)
             ok = core.run_once(cfg)
+            sync_dynamic_server(cfg)
         except Exception as e:
             core.logger.error("检查过程异常：%s", e)
             ok = False
@@ -382,24 +406,25 @@ class Api:
             "interval_minutes": cfg.getint("check", "interval_minutes", fallback=10),
             "max_retries": cfg.getint("check", "max_retries", fallback=3),
             "retry_delay": cfg.getint("check", "retry_delay", fallback=5),
-            "service": cfg.get("service", "service", fallback="education"),
+            "service": cfg.get("service", "service", fallback=""),
             "verbose": cfg.getboolean("log", "verbose", fallback=True),
         }
 
     def save_config(self, data):
         """前端传 dict 过来。PyWebView 会把 JS 对象转成 dict。"""
         import configparser
+        current = core.load_config(CFG_PATH)
         cfg = configparser.ConfigParser()
         cfg["account"] = {
             "username": data.get("username", ""),
             "password": data.get("password", ""),
         }
         cfg["server"] = {
-            "host": data.get("host", "192.168.170.168"),
-            "use_https": "true" if data.get("use_https") else "false",
+            "host": data.get("host", current.get("server", "host", fallback="")),
+            "use_https": "true" if data.get("use_https", current.getboolean("server", "use_https", fallback=False)) else "false",
         }
         cfg["network"] = {
-            "probe_url": data.get("probe_url", "http://www.baidu.com"),
+            "probe_url": data.get("probe_url", current.get("network", "probe_url", fallback="http://www.baidu.com")),
             "probe_keyword": data.get("probe_keyword", ""),
         }
         cfg["check"] = {
@@ -407,10 +432,11 @@ class Api:
             "max_retries": str(data.get("max_retries", 3)),
             "retry_delay": str(data.get("retry_delay", 5)),
         }
-        cfg["service"] = {"service": data.get("service", "education")}
+        cfg["service"] = {"service": data.get("service", "")}
         cfg["log"] = {"verbose": "true" if data.get("verbose", True) else "false"}
-        with open(CFG_PATH, "w", encoding="utf-8") as f:
-            cfg.write(f)
+        with config_write_lock:
+            with open(CFG_PATH, "w", encoding="utf-8") as f:
+                cfg.write(f)
         core.logger.info("配置已保存。")
         return {"ok": True}
 
@@ -425,6 +451,7 @@ class Api:
         try:
             cfg = core.load_config(CFG_PATH)
             ok = core.run_once(cfg)
+            sync_dynamic_server(cfg)
         except Exception as e:
             core.logger.error("手动检查异常：%s", e)
             ok = False
@@ -434,6 +461,24 @@ class Api:
             state.last_login = core.now_str()
         _notify_window("status_changed", state.to_status_dict())
         return {"ok": ok, "online": ok}
+
+    def disconnect_now(self):
+        """主动断开认证，同时停止保活，避免随后自动重新登录。"""
+        if not self._debounce("disconnect_now"):
+            return {"ok": False, "msg": "操作太频繁，已忽略"}
+        keepalive.stop()
+        core.logger.info("（手动）请求断开校园网认证 …")
+        try:
+            cfg = core.load_config(CFG_PATH)
+            with core.connection_lock:
+                ok = core.logout(cfg)
+        except Exception as e:
+            core.logger.error("断开认证异常：%s", e)
+            ok = False
+        state.online = False if ok else state.online
+        state.last_check = core.now_str()
+        _notify_window("status_changed", state.to_status_dict())
+        return {"ok": ok, "online": state.online}
 
     def start_keepalive(self):
         if not self._debounce("keep"):
@@ -473,6 +518,11 @@ class Api:
         """前端"最小化到托盘"按钮调用。"""
         if _main_window:
             _main_window.hide()
+        return {"ok": True}
+
+    def open_self_service(self):
+        """使用系统浏览器打开华科网络自助服务。"""
+        webbrowser.open("https://myself.hust.edu.cn")
         return {"ok": True}
 
 
@@ -655,6 +705,8 @@ def main():
         min_size=(720, 600),
         text_select=False,
         js_api=api,
+        frameless=True,
+        easy_drag=False,
         # 关闭时隐藏到托盘
         on_top=False,
     )

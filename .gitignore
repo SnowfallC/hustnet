@@ -21,3 +21,10 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# 前端渲染验证缓存
+.edge-*/
+
+# 仅提交当前页面实际引用的最终线稿资源
+assets/*
+!assets/hust-main-gate-lineart.png
