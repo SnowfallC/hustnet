@@ -35,7 +35,7 @@ python webview_app.py
 
 ### 验证密码
 
-已连接校园网时，校园网服务通常不会再次验证账号密码。若要验证密码，请手动前往 [myself.hust.edu.cn](https://myself.hust.edu.cn/) 断开网络，再回到程序尝试登录。
+已连接校园网时，校园网服务通常不会再次验证账号密码。若要验证密码，请手动前往 [myself.hust.edu.cn](http://myself.hust.edu.cn/) 断开网络，再回到程序尝试登录。
 
 ## 配置
 

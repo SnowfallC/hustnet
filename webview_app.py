@@ -522,7 +522,7 @@ class Api:
 
     def open_self_service(self):
         """使用系统浏览器打开华科网络自助服务。"""
-        webbrowser.open("https://myself.hust.edu.cn")
+        webbrowser.open("http://myself.hust.edu.cn")
         return {"ok": True}
 
 
